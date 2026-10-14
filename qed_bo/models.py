@@ -41,6 +41,7 @@ from botorch.sampling.pathwise.posterior_samplers import DrawMatheronPaths
 from botorch.utils.types import DEFAULT, _DefaultType
 from gpytorch.constraints import GreaterThan
 from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
+from gpytorch.kernels import ScaleKernel
 from gpytorch.means.constant_mean import ConstantMean
 from gpytorch.means.mean import Mean
 from gpytorch.module import Module
@@ -288,9 +289,11 @@ class SingleTaskQED(BatchedMultiOutputGPyTorchModel, ExactQEP, FantasizeMixin):
     posterior mean and variance. The shape parameter `q` (`power`) sets the
     tails, heavier for `q < 2`, and `q = 2` recovers the GP. Hyperparameters
     are fit by maximizing the q-ED likelihood with `QEDMarginalLogLikelihood`.
-    The defaults match `SingleTaskGP`: an RBF kernel with a dimension-scaled
+    The defaults follow `SingleTaskGP` (an RBF kernel with a dimension-scaled
     lengthscale prior, a LogNormal noise prior, and `Standardize` on the
-    outcomes.
+    outcomes), except that the kernel is wrapped in a `ScaleKernel`. The
+    q-ED fit rescales the kernel with `n` and `q`, and without a free
+    outputscale that rescaling is forced into the lengthscale.
 
     When the training observations include multiple outputs, this model uses
     batching to model outputs independently.
@@ -311,7 +314,7 @@ class SingleTaskQED(BatchedMultiOutputGPyTorchModel, ExactQEP, FantasizeMixin):
         train_X: Tensor,
         train_Y: Tensor,
         train_Yvar: Tensor | None = None,
-        power: Tensor | float = 1.0,
+        power: Tensor | float = 1.5,
         likelihood: QExponentialLikelihood | None = None,
         covar_module: Module | None = None,
         mean_module: Mean | None = None,
@@ -324,11 +327,12 @@ class SingleTaskQED(BatchedMultiOutputGPyTorchModel, ExactQEP, FantasizeMixin):
             train_Y: A `batch_shape x n x m` tensor of training observations.
             train_Yvar: An optional `batch_shape x n x m` tensor of observed
                 measurement noise. If omitted, the noise level is inferred.
-            power: The shape parameter q > 0 of the q-ED. Defaults to 1.0.
+            power: The shape parameter q > 0 of the q-ED. Defaults to 1.5.
             likelihood: A QPyTorch q-exponential likelihood. If omitted, one
                 is built with the given power.
-            covar_module: The covariance (kernel) module. If omitted, uses an
-                RBF kernel with a dimension-scaled lengthscale prior.
+            covar_module: The covariance (kernel) module. If omitted, uses a
+                `ScaleKernel` over an RBF kernel with a dimension-scaled
+                lengthscale prior.
             mean_module: The mean function. If omitted, uses a `ConstantMean`.
             outcome_transform: An outcome transform applied to the training
                 data at construction and to the posterior at inference.
@@ -390,14 +394,18 @@ class SingleTaskQED(BatchedMultiOutputGPyTorchModel, ExactQEP, FantasizeMixin):
         self.mean_module = mean_module
 
         if covar_module is None:
-            covar_module = get_covar_module_with_dim_scaled_prior(
-                ard_num_dims=transformed_X.shape[-1],
+            covar_module = ScaleKernel(
+                get_covar_module_with_dim_scaled_prior(
+                    ard_num_dims=transformed_X.shape[-1],
+                    batch_shape=self._aug_batch_shape,
+                ),
                 batch_shape=self._aug_batch_shape,
             )
             # Used for subsetting along the output dimension. See Model.subset_output.
             self._subset_batch_dict = {
                 "mean_module.raw_constant": -1,
-                "covar_module.raw_lengthscale": -3,
+                "covar_module.raw_outputscale": -1,
+                "covar_module.base_kernel.raw_lengthscale": -3,
             }
             if train_Yvar is None:
                 self._subset_batch_dict["likelihood.noise_covar.raw_noise"] = -2

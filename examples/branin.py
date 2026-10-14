@@ -17,7 +17,7 @@ from qed_bo import (
 )
 
 torch.manual_seed(0)
-POWER = 1.0  # the shape q; q < 2 gives heavier tails than a GP
+POWER = 1.5  # the shape q; q < 2 gives heavier tails than a GP
 N_INIT, N_ITER, OUTLIER_PROB = 5, 30, 0.1
 
 branin = Branin(negate=True)

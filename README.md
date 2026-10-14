@@ -44,6 +44,8 @@ pip install -e ".[dev]"
 
 `SingleTaskQED` is a drop-in replacement for BoTorch's `SingleTaskGP`, so the
 usual BoTorch loop works unchanged. The shape $q$ is the `power` argument.
+$q = 1.5$ is the default and a good starting point. Smaller $q$ gives heavier
+tails and explores more, which can spend a small budget too freely.
 
 ```python
 import torch
@@ -54,15 +56,15 @@ from qed_bo import QEDMarginalLogLikelihood, QEDUpperConfidenceBound, SingleTask
 train_X = torch.rand(10, 2, dtype=torch.double)
 train_Y = torch.sin(6 * train_X).sum(-1, keepdim=True)
 
-model = SingleTaskQED(train_X, train_Y, power=1.0)
+model = SingleTaskQED(train_X, train_Y, power=1.5)
 fit_gpytorch_mll(QEDMarginalLogLikelihood(model.likelihood, model))
 
-acq = QEDUpperConfidenceBound(model, beta=ucb_beta(t=1, num_candidates=2000), power=1.0)
+acq = QEDUpperConfidenceBound(model, beta=ucb_beta(t=1, num_candidates=2000), power=1.5)
 bounds = torch.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=torch.double)
 candidate, _ = optimize_acqf(acq, bounds=bounds, q=1, num_restarts=10, raw_samples=512)
 ```
 
-For q-EI, use `QEDExpectedImprovement(model, best_f=train_Y.max(), power=1.0)`.
+For q-EI, use `QEDExpectedImprovement(model, best_f=train_Y.max(), power=1.5)`.
 See [examples/branin.py](examples/branin.py) for a full loop on Branin with
 Cauchy-corrupted observations.
 
@@ -87,7 +89,7 @@ sample path.
 
 | Name | Description |
 | --- | --- |
-| `SingleTaskQED` | The q-ED surrogate, with `SingleTaskGP`'s defaults. Supports inferred or fixed (`train_Yvar`) noise, multiple outputs, and input and outcome transforms |
+| `SingleTaskQED` | The q-ED surrogate, with `SingleTaskGP`'s defaults plus a `ScaleKernel`. Supports inferred or fixed (`train_Yvar`) noise, multiple outputs, and input and outcome transforms |
 | `QEDPosterior` | The q-ED predictive as a BoTorch posterior, with sampling, quantiles and densities |
 | `QEDMarginalLogLikelihood` | The q-ED marginal likelihood, fit with `fit_gpytorch_mll` |
 | `QEDUpperConfidenceBound` | q-UCB, $\mu_t(x) + \Lambda_t^{1/q}\sigma_t(x)$ |

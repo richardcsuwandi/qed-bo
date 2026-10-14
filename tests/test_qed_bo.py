@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import pytest
 import torch
 from botorch.acquisition import (
@@ -66,9 +68,9 @@ def test_acquisitions_reduce_to_gp_at_q2():
 @pytest.mark.parametrize("m", [1, 2])
 def test_q2_matches_single_task_gp(m):
     train_Y = torch.cat([Y, -Y], dim=-1)[:, :m]
-    gp = SingleTaskGP(X, train_Y)
-    fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood, gp))
     qed = SingleTaskQED(X, train_Y, power=2.0)
+    gp = SingleTaskGP(X, train_Y, covar_module=deepcopy(qed.covar_module))
+    fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood, gp))
     qed.load_state_dict(gp.state_dict())
     post_gp, post_qed = gp.posterior(X_test), qed.posterior(X_test)
     assert torch.allclose(post_gp.mean, post_qed.mean)
@@ -79,6 +81,16 @@ def test_q2_matches_single_task_gp(m):
         qed(*qed.train_inputs), qed.train_targets
     )
     assert torch.allclose(mll_gp, mll_qed)
+
+
+def test_q_ed_fit_rescales_outputscale_not_lengthscale():
+    # The q-ED MLL wants the kernel about c(q, n) times smaller than the GP's.
+    # The default ScaleKernel absorbs that in the outputscale, so the lengthscale
+    # stays near the q = 2 fit instead of stretching to shrink the variance.
+    gp, qed = fitted(2.0), fitted(1.0)
+    ratio = qed.covar_module.base_kernel.lengthscale / gp.covar_module.base_kernel.lengthscale
+    assert ((ratio > 0.67) & (ratio < 1.5)).all(), ratio
+    assert qed.covar_module.outputscale < gp.covar_module.outputscale / 3
 
 
 @pytest.mark.parametrize("power", [2.0, 1.0, 0.5])

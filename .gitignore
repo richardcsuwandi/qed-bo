@@ -7,3 +7,6 @@ dist/
 .DS_Store
 .pytest_cache/
 .ruff_cache/
+
+# local experiments, not for release
+experiments/
