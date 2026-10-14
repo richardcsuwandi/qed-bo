@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qed-bo"
+version = "0.1.0"
+description = "Robust Bayesian optimization with q-exponential surrogates, built on PyTorch and BoTorch."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Richard Cornelius Suwandi" }]
+requires-python = ">=3.10"
+keywords = ["bayesian-optimization", "robust-optimization", "q-exponential", "heavy-tailed", "botorch", "pytorch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0",
+    # qpytorch 0.2 imports gpytorch.utils.generic.length_safe_zip, removed in gpytorch 1.15.
+    "gpytorch>=1.14,<1.15",
+    "qpytorch>=0.2",
+    "botorch>=0.16.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["pytest", "ruff"]
+
+[project.urls]
+Repository = "https://github.com/richardcsuwandi/qed-bo"
+Paper = "https://arxiv.org/abs/2609.32775"
+
+[tool.setuptools]
+packages = ["qed_bo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
